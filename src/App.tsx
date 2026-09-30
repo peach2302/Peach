@@ -73,50 +73,51 @@ const thaiBahtText = (num: number): string => {
 const DocField = ({ value, placeholder, minWidth = '50px', className = "", noLine = false }: { value: any, placeholder: string, minWidth?: string, className?: string, noLine?: boolean }) => {
   const displayValue = value ? toThaiNumerals(value) : '';
   const hasValue = !!displayValue;
+  const showBorder = !noLine;
   
   return (
     <span 
-      className={`inline-block text-center align-bottom mx-1 px-1 min-h-[24px] max-w-full break-words ${noLine ? '' : 'border-b border-dotted border-black/40'} ${className}`} 
+      className={`inline-block text-center align-bottom mx-1 px-1 min-h-[24px] max-w-full break-words ${showBorder && hasValue ? 'border-b border-dotted border-black/40' : ''} ${className}`} 
       style={{ minWidth }}
     >
-      {hasValue ? displayValue : <span className="text-gray-300 print:text-black/20">{placeholder}</span>}
+      {hasValue ? displayValue : <span className="text-gray-300 print:text-black">{placeholder}</span>}
     </span>
   );
 };
 
 const SignatureBlock = ({ name, position, date, label = "(ลงชื่อ)", subLabel = "ผู้ยื่นคำร้อง", showDate = true, signatureImage }: { name: string, position?: string, date?: string, label?: string, subLabel?: string, showDate?: boolean, signatureImage?: string }) => {
-  const defaultSignature = "/1f12fbdb-38f4-4f64-8e6a-2561b2dd83ff-removebg-preview.png";
-  const displayImage = signatureImage || (label === "(ลงชื่อ)" && subLabel === "" ? defaultSignature : "");
+  const defaultSignature = "1f12fbdb-38f4-4f64-8e6a-2561b2dd83ff-removebg-preview.png";
+  const displayImage = signatureImage || ((label === "(ลงชื่อ)" && subLabel === "") ? defaultSignature : "");
 
   return (
     <div className="flex flex-col items-center text-center space-y-0 w-[300px] relative">
       <div className="relative w-full h-[80px] flex flex-col items-center justify-center">
-        {/* Signature Image - centered */}
+        {/* Signature Image - centered and positioned relative to the parent */}
         {(displayImage || signatureImage) && (
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200px] h-[70px] flex items-center justify-center z-20 pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
             <img 
               src={displayImage} 
               alt="" 
-              className="max-h-full max-w-full object-contain"
+              className="max-h-[100px] max-w-[200px] object-contain block translate-y-[-10px] opacity-100 visible print:block"
               onError={(e) => {
-                // Try fallback to /signature.png if UUID fails and it's the default signature
-                if (e.currentTarget.src.includes('1f12')) {
-                  e.currentTarget.src = '/signature.png';
+                const target = e.currentTarget;
+                if (target.src.includes('1f12')) {
+                  target.src = 'signature.png';
                 } else {
-                  e.currentTarget.style.display = 'none';
+                  target.style.display = 'none';
                 }
               }}
             />
           </div>
         )}
-        <div className="z-10 mt-8 w-full">
+        <div className="z-10 mt-8 w-full relative">
           <span className="text-[16pt]">{label} ...................................................... {subLabel}</span>
         </div>
       </div>
-      <p className="mt-1 text-[16pt]">( {toThaiNumerals(name) || '................................................'} )</p>
-      {position && <p className="mt-1 text-[16pt]">{toThaiNumerals(position)}</p>}
+      <p className="mt-1 text-[16pt] relative z-10">( {toThaiNumerals(name) || '................................................'} )</p>
+      {position && <p className="mt-1 text-[16pt] relative z-10">{toThaiNumerals(position)}</p>}
       {showDate && (
-        <div className="mt-1 flex justify-center items-center text-[16pt]">
+        <div className="mt-1 flex justify-center items-center text-[16pt] relative z-10">
           <span>วันที่</span>
           <DocField value={date ? toThaiDateShort(date) : ''} placeholder="........./........../.........." minWidth="120px" noLine />
         </div>
@@ -163,6 +164,7 @@ const DEFAULT_FORM_DATA = {
   licenseNo: '',
   feeAmount: '',
   applicantSignature: '',
+  orderDate: '',
 };
 
 export default function App() {
@@ -194,7 +196,9 @@ export default function App() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    if (name) {
+      setFormData(prev => ({ ...prev, [name]: value ?? '' }));
+    }
   };
 
   const handleClear = () => {
@@ -285,6 +289,10 @@ export default function App() {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ (สำหรับเจ้าหน้าที่)</label>
                     <input type="date" name="officerDate" value={formData.officerDate || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">วันที่สั่งการ (สำหรับเจ้าพนักงาน)</label>
+                    <input type="date" name="orderDate" value={formData.orderDate || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm" />
                   </div>
                 </div>
               </div>
@@ -572,20 +580,20 @@ export default function App() {
                   ข้อที่ ๑. ข้าพเจ้ามีความประสงค์จะใช้เครื่องดังกล่าวมานั้นเพื่อทำการโฆษณากิจการ 
                 </p>
                 
-                <div className="pl-[2.5cm] space-y-1">
-                  <div className="flex items-center">
-                    <span className="shrink-0">๑.</span>
-                    <DocField value={formData.adsPurpose} placeholder="................................................................................................................................" className="flex-1 text-left" noLine={!!formData.adsPurpose} />
+                  <div className="pl-[2.5cm] space-y-1">
+                    <div className="flex items-start">
+                      <span className="shrink-0 leading-relaxed">๑.</span>
+                      <DocField value={formData.adsPurpose} placeholder="................................................................................................................................" className="flex-1 text-left" noLine={!!formData.adsPurpose} />
+                    </div>
+                    <div className="flex items-start">
+                      <span className="shrink-0 leading-relaxed">๒.</span>
+                      <DocField value={formData.adsPurpose2} placeholder="................................................................................................................................" className="flex-1 text-left" noLine={!!formData.adsPurpose2} />
+                    </div>
+                    <div className="flex items-start">
+                      <span className="shrink-0 leading-relaxed">๓.</span>
+                      <DocField value={formData.adsPurpose3} placeholder="................................................................................................................................" className="flex-1 text-left" noLine={!!formData.adsPurpose3} />
+                    </div>
                   </div>
-                  <div className="flex items-center">
-                    <span className="shrink-0">๒.</span>
-                    <DocField value={formData.adsPurpose2} placeholder="................................................................................................................................" className="flex-1 text-left" noLine={!!formData.adsPurpose2} />
-                  </div>
-                  <div className="flex items-center">
-                    <span className="shrink-0">๓.</span>
-                    <DocField value={formData.adsPurpose3} placeholder="................................................................................................................................" className="flex-1 text-left" noLine={!!formData.adsPurpose3} />
-                  </div>
-                </div>
 
                 <p>
                   ณ <DocField value={formData.adsAt} placeholder="................................" minWidth="200px" /> 
@@ -620,7 +628,7 @@ export default function App() {
               </div>
 
               <div className="mt-10 flex justify-end">
-                <SignatureBlock name={formData.applicantName} date={formData.docDate} signatureImage={formData.applicantSignature} />
+                <SignatureBlock name={formData.applicantName || ''} date={formData.docDate || ''} signatureImage={formData.applicantSignature || ''} />
               </div>
 
               <div className="mt-6 space-y-2 text-[16pt]">
@@ -631,7 +639,7 @@ export default function App() {
               </div>
 
               <div className="mt-6 flex justify-end">
-                <SignatureBlock name="ทศพล จักสาน" position="นักจัดการงานเทศกิจชำนาญการ" date={formData.docDate} label="(ลงชื่อ)" subLabel="" />
+                <SignatureBlock name="ทศพล จักสาน" position="นักจัดการงานเทศกิจชำนาญการ" date={formData.officerDate || ''} label="(ลงชื่อ)" subLabel="" />
               </div>
             </div>
 
@@ -669,7 +677,7 @@ export default function App() {
                           <div className="border-b border-dotted border-black/40 h-8 w-full"></div>
                           <div className="pt-4 text-center flex justify-center items-center">
                             <span>วันที่</span>
-                            <DocField value={toThaiDateShort(formData.officerDate)} placeholder="........./........../.........." minWidth="120px" noLine />
+                            <DocField value={toThaiDateShort(formData.orderDate)} placeholder="........./........../.........." minWidth="120px" noLine />
                           </div>
                         </div>
                       </div>
@@ -694,8 +702,8 @@ export default function App() {
               </div>
 
               <div className="flex flex-col items-center">
-                <SignatureBlock name="ทศพล จักสาน" position="นักจัดการงานเทศกิจชำนาญการ" date={formData.docDate} label="(ลงชื่อ)" subLabel="" />
-                <p className="font-bold text-[18pt] mt-4">ผู้รับเงิน</p>
+                <SignatureBlock name="ทศพล จักสาน" position="นักจัดการงานเทศกิจชำนาญการ" date="" label="(ลงชื่อ)" subLabel="" />
+                <p className="font-bold text-[16pt] mt-4">ผู้รับเงิน</p>
               </div>
             </div>
           </div>
@@ -782,6 +790,13 @@ export default function App() {
                 box-sizing: border-box !important;
                 background: white !important;
                 position: relative !important;
+                overflow: visible !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              img {
+                max-width: none !important;
+                display: block !important;
               }
               .doc-page:last-child {
                 page-break-after: auto !important;
