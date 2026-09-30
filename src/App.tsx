@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Printer, Trash2, Save, Info, CheckCircle2, FileText, ChevronLeft } from 'lucide-react';
+import { Printer, Trash2, Save, Info, CheckCircle2, FileText, ChevronLeft, Calendar, User, Home, Megaphone, Clock, Volume2, CreditCard, PenTool } from 'lucide-react';
 
 // --- Utility Functions ---
 
@@ -85,28 +85,19 @@ const DocField = ({ value, placeholder, minWidth = '50px', className = "", noLin
   );
 };
 
-const SignatureBlock = ({ name, position, date, label = "(ลงชื่อ)", subLabel = "ผู้ยื่นคำร้อง", showDate = true, signatureImage }: { name: string, position?: string, date?: string, label?: string, subLabel?: string, showDate?: boolean, signatureImage?: string }) => {
-  const defaultSignature = "1f12fbdb-38f4-4f64-8e6a-2561b2dd83ff-removebg-preview.png";
-  const displayImage = signatureImage || ((label === "(ลงชื่อ)" && subLabel === "") ? defaultSignature : "");
+const SignatureBlock = ({ name, position, date, label = "(ลงชื่อ)", subLabel = "ผู้ยื่นคำร้อง", showDate = true, signatureImage, showSignatureImage = true }: { name: string, position?: string, date?: string, label?: string, subLabel?: string, showDate?: boolean, signatureImage?: string, showSignatureImage?: boolean }) => {
+  const displayImage = (showSignatureImage && signatureImage) ? signatureImage : "";
 
   return (
     <div className="flex flex-col items-center text-center space-y-0 w-[300px] relative">
       <div className="relative w-full h-[80px] flex flex-col items-center justify-center">
-        {/* Signature Image - centered and positioned relative to the parent */}
-        {(displayImage || signatureImage) && (
+        {/* Signature Image - centered and positioned above the dots line */}
+        {displayImage && (
           <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
             <img 
               src={displayImage} 
               alt="" 
-              className="max-h-[100px] max-w-[200px] object-contain block translate-y-[-10px] opacity-100 visible print:block"
-              onError={(e) => {
-                const target = e.currentTarget;
-                if (target.src.includes('1f12')) {
-                  target.src = 'signature.png';
-                } else {
-                  target.style.display = 'none';
-                }
-              }}
+              className="max-h-[120px] max-w-[220px] object-contain block translate-y-[-15px] opacity-100 visible print:block"
             />
           </div>
         )}
@@ -164,12 +155,19 @@ const DEFAULT_FORM_DATA = {
   licenseNo: '',
   feeAmount: '',
   applicantSignature: '',
-  orderDate: '',
+  officerName: 'ทศพล จักสาน',
+  officerPosition: 'นักจัดการงานเทศกิจชำนาญการ',
+  officerSignature: '',
 };
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<'form' | 'preview'>('form');
+  const [viewMode, setViewMode] = useState<'form' | 'preview' | 'officer-settings'>('form');
   const [formData, setFormData] = useState(DEFAULT_FORM_DATA);
+  const [officerSettings, setOfficerSettings] = useState({
+    name: 'ทศพล จักสาน',
+    position: 'นักจัดการงานเทศกิจชำนาญการ',
+    signature: ''
+  });
 
   const [isSaved, setIsSaved] = useState(false);
 
@@ -184,6 +182,15 @@ export default function App() {
         console.error("Failed to parse saved data", e);
       }
     }
+
+    const savedOfficer = localStorage.getItem('officer_signature_data');
+    if (savedOfficer) {
+      try {
+        setOfficerSettings(JSON.parse(savedOfficer));
+      } catch (e) {
+        console.error("Failed to parse officer data", e);
+      }
+    }
   }, []);
 
   // Save to localStorage
@@ -193,6 +200,10 @@ export default function App() {
     const timer = setTimeout(() => setIsSaved(false), 2000);
     return () => clearTimeout(timer);
   }, [formData]);
+
+  useEffect(() => {
+    localStorage.setItem('officer_signature_data', JSON.stringify(officerSettings));
+  }, [officerSettings]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -217,6 +228,26 @@ export default function App() {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleOfficerSettingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setOfficerSettings(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleOfficerSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setOfficerSettings(prev => ({ ...prev, signature: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleClearOfficerSignature = () => {
+    setOfficerSettings(prev => ({ ...prev, signature: '' }));
   };
 
   const handlePrint = () => {
@@ -253,251 +284,469 @@ export default function App() {
     return toThaiNumerals(formatted);
   };
 
+  const Navbar = () => (
+    <div className="bg-white border-b border-slate-200 sticky top-0 z-50 print:hidden">
+      <div className="max-w-4xl mx-auto px-4 md:px-6">
+        <div className="flex justify-between items-center h-16">
+          <div className="flex gap-1 md:gap-4 overflow-x-auto no-scrollbar">
+            <button
+              onClick={() => setViewMode('form')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all whitespace-nowrap ${
+                viewMode === 'form' 
+                  ? 'bg-blue-50 text-blue-600 border border-blue-100' 
+                  : 'text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <FileText className="w-5 h-5" />
+              📝 กรอกข้อมูลคำร้อง
+            </button>
+            <button
+              onClick={() => setViewMode('officer-settings')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all whitespace-nowrap ${
+                viewMode === 'officer-settings' 
+                  ? 'bg-blue-50 text-blue-600 border border-blue-100' 
+                  : 'text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <PenTool className="w-5 h-5" />
+              ✍️ จัดการลายเซ็นเจ้าหน้าที่
+            </button>
+          </div>
+          {viewMode === 'form' && isSaved && (
+            <div className="hidden md:flex items-center gap-2 text-blue-500 bg-blue-50 px-3 py-1.5 rounded-full text-xs font-bold border border-blue-100 animate-pulse">
+              <CheckCircle2 className="w-3 h-3" />
+              บันทึกแล้ว
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50">
+      {(viewMode === 'form' || viewMode === 'officer-settings') && <Navbar />}
+      
       {viewMode === 'form' ? (
         /* --- FORM VIEW --- */
-        <div className="max-w-3xl mx-auto py-8 px-4 md:px-0">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="bg-blue-600 p-8 text-white">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h1 className="text-2xl font-bold mb-2">ระบบกรอกแบบฟอร์ม ฆษ.๑ ออนไลน์</h1>
-                  <p className="text-blue-100 opacity-90">เทศบาลตำบลป่งไฮ อำเภอเซกา จังหวัดบึงกาฬ</p>
-                </div>
-                {isSaved && (
-                  <div className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" />
-                    บันทึกข้อมูลแล้ว
+        <div className="max-w-4xl mx-auto py-8 px-4 md:px-6">
+          <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden transition-all">
+            <div className="bg-gradient-to-r from-blue-700 to-blue-500 p-10 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-10">
+                <FileText className="w-32 h-32 rotate-12" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <h1 className="text-3xl font-extrabold mb-2 tracking-tight">ระบบขออนุญาตใช้เครื่องขยายเสียง</h1>
+                    <p className="text-blue-100 font-medium text-lg flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-300 rounded-full"></span>
+                      เทศบาลตำบลป่งไฮ จ.บึงกาฬ
+                    </p>
                   </div>
-                )}
+                  {isSaved && (
+                    <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-2xl text-sm font-bold flex items-center gap-2 border border-white/30 animate-pulse">
+                      <CheckCircle2 className="w-4 h-4 text-blue-200" />
+                      ระบบบันทึกข้อมูลอัตโนมัติแล้ว
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="p-8 space-y-10">
-              {/* Section: General */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-blue-600 font-bold border-b border-slate-100 pb-2">
-                  <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                  <h2>ข้อมูลทั่วไป</h2>
+            <div className="p-10 space-y-12">
+              {/* Section: Document Date */}
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 text-slate-800 font-bold text-xl">
+                  <div className="bg-blue-100 p-2.5 rounded-xl text-blue-600">
+                    <Calendar className="w-6 h-6" />
+                  </div>
+                  <h2>📄 ข้อมูลคำร้อง</h2>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">วันที่ในเอกสาร *</label>
-                    <input type="date" name="docDate" value={formData.docDate || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ (สำหรับเจ้าหน้าที่)</label>
-                    <input type="date" name="officerDate" value={formData.officerDate || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">วันที่สั่งการ (สำหรับเจ้าพนักงาน)</label>
-                    <input type="date" name="orderDate" value={formData.orderDate || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-slate-50/50 rounded-2xl border border-slate-100">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-slate-600 ml-1">วันที่ต้องการระบุในเอกสาร *</label>
+                    <input 
+                      type="date" 
+                      name="docDate" 
+                      value={formData.docDate || ''} 
+                      onChange={handleChange} 
+                      className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all shadow-sm font-medium" 
+                    />
                   </div>
                 </div>
-              </div>
+              </section>
 
               {/* Section: Applicant */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-blue-600 font-bold border-b border-slate-100 pb-2">
-                  <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                  <h2>ข้อมูลผู้ยื่นคำร้อง</h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">ชื่อ-นามสกุล *</label>
-                    <input type="text" name="applicantName" value={formData.applicantName || ''} onChange={handleChange} placeholder="นายสมชาย ใจดี" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm" />
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 text-slate-800 font-bold text-xl">
+                  <div className="bg-blue-100 p-2.5 rounded-xl text-blue-600">
+                    <User className="w-6 h-6" />
                   </div>
-                  <div className="grid grid-cols-1 md:col-span-2">
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">อัปโหลดลายเซ็นผู้ยื่นคำร้อง</label>
-                    <input type="file" accept="image/*" onChange={handleFileChange} className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                    {formData.applicantSignature && (
-                      <div className="mt-2 text-xs text-green-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        โหลดไฟล์ลายเซ็นเรียบร้อยแล้ว
+                  <h2>👤 ข้อมูลผู้ยื่นคำร้อง</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 bg-slate-50/50 rounded-3xl border border-slate-100">
+                  <div className="md:col-span-2 space-y-2">
+                    <label className="block text-sm font-bold text-slate-600 ml-1">ชื่อ-นามสกุล ผู้ยื่นคำร้อง *</label>
+                    <input 
+                      type="text" 
+                      name="applicantName" 
+                      value={formData.applicantName || ''} 
+                      onChange={handleChange} 
+                      placeholder="เช่น นายป่งไฮ ใจดี" 
+                      className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all shadow-sm font-medium" 
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-slate-600 ml-1">อายุ (ปี)</label>
+                    <input 
+                      type="number" 
+                      name="applicantAge" 
+                      value={formData.applicantAge || ''} 
+                      onChange={handleChange} 
+                      placeholder="ระบุตัวเลข" 
+                      className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all shadow-sm font-medium" 
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-bold text-slate-600 ml-1">เชื้อชาติ</label>
+                      <input 
+                        type="text" 
+                        name="applicantEthnicity" 
+                        value={formData.applicantEthnicity || ''} 
+                        onChange={handleChange} 
+                        className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all shadow-sm font-medium" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-bold text-slate-600 ml-1">สัญชาติ</label>
+                      <input 
+                        type="text" 
+                        name="applicantNationality" 
+                        value={formData.applicantNationality || ''} 
+                        onChange={handleChange} 
+                        className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all shadow-sm font-medium" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2 mt-4">
+                    <div className="flex items-center gap-2 mb-4 text-slate-700 font-bold">
+                      <Home className="w-5 h-5 text-blue-500" />
+                      <h3>🏠 ที่อยู่ผู้ยื่นคำร้อง</h3>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">บ้านเลขที่</label>
+                        <input type="text" name="addressNo" value={formData.addressNo || ''} onChange={handleChange} placeholder="123" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-blue-500 outline-none shadow-sm" />
                       </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 md:col-span-2">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">อายุ (ปี)</label>
-                      <input type="number" name="applicantAge" value={formData.applicantAge || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">หมู่ที่</label>
+                        <input type="text" name="addressMoo" value={formData.addressMoo || ''} onChange={handleChange} placeholder="5" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-blue-500 outline-none shadow-sm" />
+                      </div>
+                      <div className="md:col-span-2 space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">ถนน</label>
+                        <input type="text" name="addressRoad" value={formData.addressRoad || ''} onChange={handleChange} placeholder="ศรีป่งไฮ" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-blue-500 outline-none shadow-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">ตำบล</label>
+                        <input type="text" name="addressTambon" value={formData.addressTambon || ''} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-blue-500 outline-none shadow-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">อำเภอ</label>
+                        <input type="text" name="addressAmphoe" value={formData.addressAmphoe || ''} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-blue-500 outline-none shadow-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">จังหวัด</label>
+                        <input type="text" name="addressProvince" value={formData.addressProvince || ''} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-blue-500 outline-none shadow-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">โทรศัพท์</label>
+                        <input type="text" name="addressPhone" value={formData.addressPhone || ''} onChange={handleChange} placeholder="08x-xxxxxxx" className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:border-blue-500 outline-none shadow-sm" />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">เชื้อชาติ</label>
-                      <input type="text" name="applicantEthnicity" value={formData.applicantEthnicity || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">สัญชาติ</label>
-                      <input type="text" name="applicantNationality" value={formData.applicantNationality || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 md:col-span-2">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">บ้านเลขที่</label>
-                      <input type="text" name="addressNo" value={formData.addressNo || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">หมู่ที่</label>
-                      <input type="text" name="addressMoo" value={formData.addressMoo || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 md:col-span-2">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">ถนน</label>
-                      <input type="text" name="addressRoad" value={formData.addressRoad || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">ตำบล</label>
-                      <input type="text" name="addressTambon" value={formData.addressTambon || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 md:col-span-2">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">อำเภอ</label>
-                      <input type="text" name="addressAmphoe" value={formData.addressAmphoe || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">จังหวัด</label>
-                      <input type="text" name="addressProvince" value={formData.addressProvince || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">โทรศัพท์</label>
-                    <input type="text" name="addressPhone" value={formData.addressPhone || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
                   </div>
                 </div>
-              </div>
+              </section>
 
               {/* Section: Advertising Details */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-blue-600 font-bold border-b border-slate-100 pb-2">
-                  <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                  <h2>รายละเอียดการโฆษณา</h2>
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 text-slate-800 font-bold text-xl">
+                  <div className="bg-blue-100 p-2.5 rounded-xl text-blue-600">
+                    <Megaphone className="w-6 h-6" />
+                  </div>
+                  <h2>📢 รายละเอียดการโฆษณา</h2>
                 </div>
-                <div className="grid grid-cols-1 gap-6">
-                  <div className="space-y-4">
-                    <label className="block text-sm font-semibold text-slate-700">ความประสงค์</label>
-                    <input type="text" name="adsPurpose" value={formData.adsPurpose || ''} onChange={handleChange} placeholder="บรรทัดที่ 1" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    <input type="text" name="adsPurpose2" value={formData.adsPurpose2 || ''} onChange={handleChange} placeholder="บรรทัดที่ 2" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    <input type="text" name="adsPurpose3" value={formData.adsPurpose3 || ''} onChange={handleChange} placeholder="บรรทัดที่ 3" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+                <div className="grid grid-cols-1 gap-8 p-8 bg-slate-50/50 rounded-3xl border border-slate-100">
+                  <div className="space-y-3">
+                    <label className="block text-sm font-bold text-slate-600 ml-1">ความประสงค์จะใช้เครื่องเพื่อทำการโฆษณาเรื่อง (ระบุได้ 3 บรรทัด)</label>
+                    <input type="text" name="adsPurpose" value={formData.adsPurpose || ''} onChange={handleChange} placeholder="บรรทัดที่ 1: เช่น จัดงานบวช ณ วัดป่งไฮ" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 outline-none shadow-sm font-medium" />
+                    <input type="text" name="adsPurpose2" value={formData.adsPurpose2 || ''} onChange={handleChange} placeholder="บรรทัดที่ 2: เช่น มีการแสดงดนตรีและรถแห่" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 outline-none shadow-sm font-medium" />
+                    <input type="text" name="adsPurpose3" value={formData.adsPurpose3 || ''} onChange={handleChange} placeholder="บรรทัดที่ 3: (ถ้ามี)" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 outline-none shadow-sm font-medium" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">สถานที่ (ณ)</label>
-                    <input type="text" name="adsAt" value={formData.adsAt || ''} onChange={handleChange} placeholder="หมู่บ้านป่งไฮ" className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">เลขที่</label>
-                      <input type="text" name="adsNo" value={formData.adsNo || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-bold text-slate-600 ml-1">สถานที่ติดตั้งเครื่อง (ณ)</label>
+                      <input type="text" name="adsAt" value={formData.adsAt || ''} onChange={handleChange} placeholder="เช่น วัดป่งไฮราษฎร์บำรุง" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 outline-none shadow-sm font-medium" />
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">หมู่ที่</label>
-                      <input type="text" name="adsMoo" value={formData.adsMoo || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">ตำบล</label>
-                      <input type="text" name="adsTambon" value={formData.adsTambon || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">อำเภอ</label>
-                      <input type="text" name="adsAmphoe" value={formData.adsAmphoe || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">จังหวัด</label>
-                      <input type="text" name="adsProvince" value={formData.adsProvince || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-bold text-slate-600 ml-1">เลขที่</label>
+                        <input type="text" name="adsNo" value={formData.adsNo || ''} onChange={handleChange} className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 outline-none shadow-sm font-medium" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-bold text-slate-600 ml-1">หมู่ที่</label>
+                        <input type="text" name="adsMoo" value={formData.adsMoo || ''} onChange={handleChange} className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:border-blue-500 outline-none shadow-sm font-medium" />
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">จำนวน (วัน)</label>
-                      <input type="number" name="adsDuration" value={formData.adsDuration || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">ตำบล</label>
+                      <input type="text" name="adsTambon" value={formData.adsTambon || ''} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg outline-none shadow-sm" />
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">ตั้งแต่วันที่</label>
-                      <input type="date" name="adsStartDate" value={formData.adsStartDate || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">อำเภอ</label>
+                      <input type="text" name="adsAmphoe" value={formData.adsAmphoe || ''} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg outline-none shadow-sm" />
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">ถึงวันที่</label>
-                      <input type="date" name="adsEndDate" value={formData.adsEndDate || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">ตั้งแต่เวลา</label>
-                      <input type="time" name="adsStartTime" value={formData.adsStartTime || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">ถึงเวลา</label>
-                      <input type="time" name="adsEndTime" value={formData.adsEndTime || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase ml-1">จังหวัด</label>
+                      <input type="text" name="adsProvince" value={formData.adsProvince || ''} onChange={handleChange} className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg outline-none shadow-sm" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">ทะเบียนเครื่องขยายเสียง</label>
-                      <input type="text" name="amplifierRegNo" value={formData.amplifierRegNo || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+
+                  <div className="pt-4 border-t border-slate-200">
+                    <div className="flex items-center gap-2 mb-4 text-slate-700 font-bold">
+                      <Clock className="w-5 h-5 text-blue-500" />
+                      <h3>📅 ระยะเวลาและวันเวลา</h3>
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">ทะเบียนไมโครโฟน</label>
-                      <input type="text" name="micRegNo" value={formData.micRegNo || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-bold text-slate-600 ml-1">จำนวนวัน (วัน)</label>
+                        <input type="number" name="adsDuration" value={formData.adsDuration || ''} onChange={handleChange} className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:border-blue-500 outline-none shadow-sm" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-bold text-slate-600 ml-1">ตั้งแต่วันที่</label>
+                        <input type="date" name="adsStartDate" value={formData.adsStartDate || ''} onChange={handleChange} className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:border-blue-500 outline-none shadow-sm" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-bold text-slate-600 ml-1">ถึงวันที่</label>
+                        <input type="date" name="adsEndDate" value={formData.adsEndDate || ''} onChange={handleChange} className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:border-blue-500 outline-none shadow-sm" />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">ทะเบียนเครื่องบันทึกเสียง</label>
-                      <input type="text" name="recorderRegNo" value={formData.recorderRegNo || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+                    <div className="grid grid-cols-2 gap-6 mt-6">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-bold text-slate-600 ml-1">ตั้งแต่เวลา</label>
+                        <input type="time" name="adsStartTime" value={formData.adsStartTime || ''} onChange={handleChange} className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:border-blue-500 outline-none shadow-sm" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-bold text-slate-600 ml-1">ถึงเวลา</label>
+                        <input type="time" name="adsEndTime" value={formData.adsEndTime || ''} onChange={handleChange} className="w-full px-5 py-3 bg-white border border-slate-200 rounded-xl focus:border-blue-500 outline-none shadow-sm" />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              </section>
+
+              {/* Section: Equipment Details */}
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 text-slate-800 font-bold text-xl">
+                  <div className="bg-blue-100 p-2.5 rounded-xl text-blue-600">
+                    <Volume2 className="w-6 h-6" />
+                  </div>
+                  <h2>🔊 รายละเอียดเครื่องขยายเสียง</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-8 bg-slate-50/50 rounded-3xl border border-slate-100">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-slate-600 ml-1 text-center md:text-left">ทะเบียนเครื่องขยายเสียง</label>
+                    <input type="text" name="amplifierRegNo" value={formData.amplifierRegNo || ''} onChange={handleChange} placeholder="เลขทะเบียนเครื่อง" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl outline-none shadow-sm" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-slate-600 ml-1 text-center md:text-left">ทะเบียนไมโครโฟน</label>
+                    <input type="text" name="micRegNo" value={formData.micRegNo || ''} onChange={handleChange} placeholder="เลขทะเบียนไมค์" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl outline-none shadow-sm" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-slate-600 ml-1 text-center md:text-left">ทะเบียนเครื่องบันทึกเสียง</label>
+                    <input type="text" name="recorderRegNo" value={formData.recorderRegNo || ''} onChange={handleChange} placeholder="เลขทะเบียนเครื่องบันทึก" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl outline-none shadow-sm" />
+                  </div>
+                </div>
+              </section>
 
               {/* Section: License */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-blue-600 font-bold border-b border-slate-100 pb-2">
-                  <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-                  <h2>ข้อมูลใบอนุญาต (สำหรับเจ้าหน้าที่)</h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">ใบอนุญาตเลขที่</label>
-                    <input type="text" name="licenseNo" value={formData.licenseNo || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 text-slate-800 font-bold text-xl">
+                  <div className="bg-blue-100 p-2.5 rounded-xl text-blue-600">
+                    <CreditCard className="w-6 h-6" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">ค่าธรรมเนียม (บาท)</label>
-                    <input type="number" name="feeAmount" value={formData.feeAmount || ''} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+                  <h2>💰 ข้อมูลใบอนุญาตและค่าธรรมเนียม</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 bg-slate-50/50 rounded-3xl border border-slate-100">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-slate-600 ml-1">ใบอนุญาตเลขที่ (ถ้าทราบ)</label>
+                    <input type="text" name="licenseNo" value={formData.licenseNo || ''} onChange={handleChange} placeholder="รอกรอกโดยเจ้าหน้าที่" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl outline-none shadow-sm" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-slate-600 ml-1 text-blue-700">ค่าธรรมเนียม (บาท) *</label>
+                    <div className="relative">
+                      <input type="number" name="feeAmount" value={formData.feeAmount || ''} onChange={handleChange} placeholder="0.00" className="w-full pl-10 pr-5 py-3.5 bg-white border border-blue-200 rounded-xl focus:border-blue-500 outline-none shadow-sm font-bold text-blue-600" />
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 font-bold">฿</div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <div className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="pt-10 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <button
                   onClick={handlePreview}
-                  className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-blue-200 active:scale-[0.98]"
+                  className="flex items-center justify-center gap-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-black py-5 px-8 rounded-2xl transition-all shadow-xl shadow-blue-200 active:scale-[0.98] text-lg uppercase tracking-wider"
                 >
-                  <FileText className="w-5 h-5" />
-                  สร้างเอกสาร / ดูตัวอย่าง
+                  <FileText className="w-6 h-6" />
+                  ดูตัวอย่างและพิมพ์เอกสาร
                 </button>
                 <button
                   onClick={handleClear}
-                  className="flex items-center justify-center gap-2 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 font-bold py-4 px-6 rounded-xl transition-all active:scale-[0.98]"
+                  className="flex items-center justify-center gap-3 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-500 font-bold py-5 px-8 rounded-2xl transition-all active:scale-[0.98] text-lg"
                 >
-                  <Trash2 className="w-5 h-5" />
-                  ล้างข้อมูล
+                  <Trash2 className="w-6 h-6" />
+                  ล้างข้อมูลทั้งหมด
                 </button>
               </div>
 
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex gap-4">
-                <Info className="w-6 h-6 text-blue-500 shrink-0 mt-0.5" />
-                <div className="text-sm text-blue-800 leading-relaxed">
-                  <p className="font-bold mb-1">ความปลอดภัยของข้อมูล:</p>
-                  <p>ระบบจะจัดเก็บข้อมูลไว้ใน Browser ของคุณเท่านั้น ไม่มีการส่งข้อมูลไปยัง Server เจ้าหน้าที่จะเห็นข้อมูลนี้ได้จากการพิมพ์เอกสารออกไปใช้งานจริงเท่านั้น</p>
+              <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100 flex gap-5">
+                <div className="bg-amber-100 p-3 rounded-2xl text-amber-600 shrink-0 self-start">
+                  <Info className="w-6 h-6" />
+                </div>
+                <div className="text-sm text-amber-900 leading-relaxed">
+                  <p className="font-extrabold mb-1.5 text-base">ℹ️ คำแนะนำในการใช้งาน:</p>
+                  <p className="font-medium opacity-80 italic">ระบบจะจัดเก็บข้อมูลไว้ใน Browser ของคุณเท่านั้น ไม่มีการส่งข้อมูลไปยัง Server ข้อมูลทั้งหมดจะปลอดภัยและถูกลบเมื่อคุณกด "ล้างข้อมูล" หรือล้างประวัติเบราว์เซอร์</p>
                 </div>
               </div>
             </div>
           </div>
-          <footer className="mt-8 text-center text-slate-400 text-sm">
-            © 2026 เทศบาลตำบลป่งไฮ - ระบบงานสารบรรณอิเล็กทรอนิกส์
+          <footer className="mt-12 text-center text-slate-400 font-medium pb-12">
+            © 2026 ระบบสารบรรณอิเล็กทรอนิกส์ • เทศบาลตำบลป่งไฮ
           </footer>
+        </div>
+      ) : viewMode === 'officer-settings' ? (
+        /* --- OFFICER SETTINGS VIEW --- */
+        <div className="max-w-4xl mx-auto py-8 px-4 md:px-6">
+          <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden transition-all animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-10 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-10">
+                <PenTool className="w-32 h-32 rotate-12" />
+              </div>
+              <div className="relative z-10">
+                <h1 className="text-3xl font-extrabold mb-2 tracking-tight">จัดการลายเซ็นเจ้าหน้าที่</h1>
+                <p className="text-slate-300 font-medium text-lg">
+                  สำหรับตั้งค่าข้อมูลผู้รับผิดชอบและลายเซ็นที่จะแสดงในเอกสาร
+                </p>
+              </div>
+            </div>
+
+            <div className="p-10 space-y-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 bg-slate-50/50 rounded-3xl border border-slate-100">
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-slate-600 ml-1">ชื่อเจ้าหน้าที่</label>
+                  <input 
+                    type="text" 
+                    name="name" 
+                    value={officerSettings.name} 
+                    onChange={handleOfficerSettingChange} 
+                    className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all shadow-sm font-medium" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-slate-600 ml-1">ตำแหน่ง</label>
+                  <input 
+                    type="text" 
+                    name="position" 
+                    value={officerSettings.position} 
+                    onChange={handleOfficerSettingChange} 
+                    className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all shadow-sm font-medium" 
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 text-slate-800 font-bold text-xl">
+                  <div className="bg-blue-100 p-2.5 rounded-xl text-blue-600">
+                    <PenTool className="w-6 h-6" />
+                  </div>
+                  <h2>ลายเซ็นดิจิทัล</h2>
+                </div>
+                
+                <div className="flex flex-col md:flex-row gap-8 items-center bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                  <div className="flex-1 w-full space-y-6">
+                    <p className="text-slate-500 font-medium leading-relaxed">
+                      อัปโหลดรูปภาพลายเซ็นของคุณเพื่อใช้ในเอกสาร (แนะนำไฟล์ PNG ที่ไม่มีพื้นหลัง)
+                    </p>
+                    <div className="flex flex-wrap gap-4">
+                      <div className="relative overflow-hidden">
+                        <button className="px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-100 flex items-center gap-2 active:scale-95">
+                          <Save className="w-5 h-5" />
+                          {officerSettings.signature ? 'เปลี่ยนรูปภาพ' : 'เลือกไฟล์ภาพ'}
+                        </button>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={handleOfficerSignatureUpload} 
+                          className="absolute inset-0 opacity-0 cursor-pointer" 
+                        />
+                      </div>
+                      {officerSettings.signature && (
+                        <button 
+                          onClick={handleClearOfficerSignature}
+                          className="px-8 py-3.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl transition-all border border-red-100 flex items-center gap-2 active:scale-95"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                          ลบทิ้ง
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="shrink-0 w-full md:w-80 h-40 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center relative overflow-hidden group">
+                    {officerSettings.signature ? (
+                      <img src={officerSettings.signature} alt="Officer Signature Preview" className="max-h-32 object-contain group-hover:scale-110 transition-transform duration-300" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-slate-400">
+                        <PenTool className="w-10 h-10 opacity-20" />
+                        <span className="text-sm italic font-medium">ยังไม่ได้อัปโหลดลายเซ็น</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-blue-50 rounded-3xl border border-blue-100 flex gap-5">
+                <div className="bg-blue-100 p-3 rounded-2xl text-blue-600 shrink-0">
+                  <Info className="w-6 h-6" />
+                </div>
+                <div className="text-sm text-blue-900 leading-relaxed font-medium">
+                  <p className="font-extrabold mb-1.5 text-base text-blue-950">ข้อมูลลายเซ็นเจ้าหน้าที่:</p>
+                  <ul className="list-disc ml-4 space-y-1 opacity-90">
+                    <li>ข้อมูลนี้จะถูกเก็บไว้ถาวรในเบราว์เซอร์นี้ (localStorage)</li>
+                    <li>ลายเซ็นจะแสดงในช่อง "พนักงานเจ้าหน้าที่" อัตโนมัติ</li>
+                    <li>ส่วน "ผู้รับเงิน" จะไม่แสดงลายเซ็นเพื่อให้สามารถเซ็นด้วยมือได้</li>
+                  </ul>
+                </div>
+              </div>
+              
+              <div className="pt-4 flex justify-end">
+                <button
+                  onClick={() => setViewMode('form')}
+                  className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-all active:scale-95"
+                >
+                  <Home className="w-5 h-5" />
+                  กลับไปหน้าแบบฟอร์ม
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         /* --- DOCUMENT PREVIEW VIEW --- */
@@ -628,7 +877,11 @@ export default function App() {
               </div>
 
               <div className="mt-10 flex justify-end">
-                <SignatureBlock name={formData.applicantName || ''} date={formData.docDate || ''} signatureImage={formData.applicantSignature || ''} />
+                <SignatureBlock 
+                  name={formData.applicantName || ''} 
+                  date={formData.docDate || ''} 
+                  signatureImage="" 
+                />
               </div>
 
               <div className="mt-6 space-y-2 text-[16pt]">
@@ -639,7 +892,15 @@ export default function App() {
               </div>
 
               <div className="mt-6 flex justify-end">
-                <SignatureBlock name="ทศพล จักสาน" position="นักจัดการงานเทศกิจชำนาญการ" date={formData.officerDate || ''} label="(ลงชื่อ)" subLabel="" />
+                <SignatureBlock 
+                  name={officerSettings.name} 
+                  position={officerSettings.position} 
+                  date="" 
+                  label="(ลงชื่อ)" 
+                  subLabel="" 
+                  signatureImage={officerSettings.signature || ""}
+                  showSignatureImage={true} 
+                />
               </div>
             </div>
 
@@ -663,7 +924,7 @@ export default function App() {
                           <div className="border-b border-dotted border-black/40 h-8 w-full"></div>
                           <div className="pt-4 text-center flex justify-center items-center">
                             <span>วันที่</span>
-                            <DocField value={toThaiDateShort(formData.officerDate)} placeholder="........./........../.........." minWidth="120px" noLine />
+                            <DocField value="" placeholder="........./........../.........." minWidth="120px" noLine />
                           </div>
                         </div>
                       </div>
@@ -677,7 +938,7 @@ export default function App() {
                           <div className="border-b border-dotted border-black/40 h-8 w-full"></div>
                           <div className="pt-4 text-center flex justify-center items-center">
                             <span>วันที่</span>
-                            <DocField value={toThaiDateShort(formData.orderDate)} placeholder="........./........../.........." minWidth="120px" noLine />
+                            <DocField value="" placeholder="........./........../.........." minWidth="120px" noLine />
                           </div>
                         </div>
                       </div>
@@ -702,7 +963,14 @@ export default function App() {
               </div>
 
               <div className="flex flex-col items-center">
-                <SignatureBlock name="ทศพล จักสาน" position="นักจัดการงานเทศกิจชำนาญการ" date="" label="(ลงชื่อ)" subLabel="" />
+                <SignatureBlock 
+                  name={officerSettings.name} 
+                  position={officerSettings.position} 
+                  date="" 
+                  label="(ลงชื่อ)" 
+                  subLabel="" 
+                  showSignatureImage={false} 
+                />
                 <p className="font-bold text-[16pt] mt-4">ผู้รับเงิน</p>
               </div>
             </div>
